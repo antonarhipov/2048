@@ -1,91 +1,90 @@
 package org.game2048
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.animation.core.*
-import androidx.compose.animation.animateColorAsState
+import kotlin.math.abs
 import kotlinx.coroutines.launch
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowState
-import androidx.compose.ui.window.application
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.AnimatedVisibility
 import org.game2048.engine.GameEngine
 import org.game2048.engine.GameEngineImpl
 import org.game2048.model.Board
 import org.game2048.model.GameState
 import org.game2048.model.Move
 
-fun main() = application {
-    val windowState = remember {
-        WindowState(
-            size = DpSize(550.dp, 700.dp)
-        )
-    }
-
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "2048 Game",
-        state = windowState,
-        resizable = true,
-        transparent = false
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .sizeIn(minWidth = 400.dp, minHeight = 500.dp)
-        ) {
-            Game()
-        }
-    }
-}
+private val BoardBackground = Color(0xFFBBADA0)
+private val TextBrown = Color(0xFF776E65)
+private val AppBackground = Color(0xFFFAF8EF)
+private val AccentBrown = Color(0xFF8F7A66)
+private val WinGold = Color(0xFFF9BE02)
 
 @Composable
-@Preview
 fun Game() {
     var gameEngine by remember { mutableStateOf<GameEngine>(GameEngineImpl()) }
-    var gameState by remember { mutableStateOf<GameState>(gameEngine.newGame()) }
+    var gameState by remember { mutableStateOf(gameEngine.newGame()) }
 
     MaterialTheme {
         Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color(0xFFFAF8EF)
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+            color = AppBackground
         ) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Game title and instructions
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -94,17 +93,17 @@ fun Game() {
                         text = "2048",
                         fontSize = 48.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF776E65)
+                        color = TextBrown
                     )
                     Text(
                         text = "Join the tiles, get to 2048!",
                         fontSize = 16.sp,
-                        color = Color(0xFF776E65)
+                        color = TextBrown
                     )
                     Text(
-                        text = "Use arrow keys to move",
+                        text = "Swipe, or use arrow keys / WASD",
                         fontSize = 14.sp,
-                        color = Color(0xFF776E65).copy(alpha = 0.7f)
+                        color = TextBrown.copy(alpha = 0.7f)
                     )
                 }
 
@@ -113,26 +112,24 @@ fun Game() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Score and status display
                     Column {
                         Text(
                             text = "SCORE",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF776E65)
+                            color = TextBrown
                         )
                         Text(
                             text = "${gameState.board.score}",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF776E65)
+                            color = TextBrown
                         )
-                        // Game status
                         val status = when (val state = gameState) {
                             is GameState.Won -> if (state.continueGame) {
-                                StatusText("Keep going!", Color(0xFFF9BE02))
+                                StatusText("Keep going!", WinGold)
                             } else {
-                                StatusText("You won!", Color(0xFFF9BE02))
+                                StatusText("You won!", WinGold)
                             }
                             else -> null
                         }
@@ -146,47 +143,36 @@ fun Game() {
                         }
                     }
 
-                    // Game controls
                     GameControls(
-                        onNewGame = {
-                            gameState = gameEngine.newGame()
-                        },
-                        onUndo = {
-                            gameEngine.undo()?.let { gameState = it }
-                        },
-                        onContinue = {
-                            gameState = gameEngine.continueGame()
-                        },
+                        onNewGame = { gameState = gameEngine.newGame() },
+                        onUndo = { gameEngine.undo()?.let { gameState = it } },
+                        onContinue = { gameState = gameEngine.continueGame() },
                         gameState = gameState,
                         canUndo = gameState is GameState.Playing && (gameState as GameState.Playing).canUndo
                     )
                 }
 
-                // Game board
                 GameBoard(
                     gameState = gameState,
-                    onMove = { move ->
-                        gameState = gameEngine.makeMove(move)
-                    }
+                    onMove = { move -> gameState = gameEngine.makeMove(move) }
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GameBoard(
     gameState: GameState,
     onMove: (Move) -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
-    var lastMove by remember { mutableStateOf<Move?>(null) }
-    var showArrow by remember { mutableStateOf(false) }
     var lastKeyPressed by remember { mutableStateOf<String?>(null) }
     var showKeyOverlay by remember { mutableStateOf(false) }
     var showGameOver by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 40.dp.toPx() }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -211,23 +197,33 @@ fun GameBoard(
 
     val borderAlpha by animateFloatAsState(
         targetValue = if (isFocused) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = 200,
-            easing = LinearEasing
-        )
+        animationSpec = tween(durationMillis = 200, easing = LinearEasing)
     )
 
-    val borderColor = Color(0xFF8F7A66).copy(alpha = borderAlpha)
+    fun submitMove(move: Move) {
+        lastKeyPressed = when (move) {
+            Move.LEFT -> "←"
+            Move.RIGHT -> "→"
+            Move.UP -> "↑"
+            Move.DOWN -> "↓"
+        }
+        showKeyOverlay = true
+        scope.launch {
+            onMove(move)
+            kotlinx.coroutines.delay(200)
+            showKeyOverlay = false
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth(0.85f)
             .padding(8.dp)
             .aspectRatio(1f)
-            .background(Color(0xFFBBADA0), RoundedCornerShape(6.dp))
+            .background(BoardBackground, RoundedCornerShape(6.dp))
             .border(
                 width = 2.dp,
-                color = borderColor,
+                color = AccentBrown.copy(alpha = borderAlpha),
                 shape = RoundedCornerShape(6.dp)
             )
             .padding(4.dp)
@@ -235,36 +231,40 @@ fun GameBoard(
             .focusable()
             .onFocusChanged { isFocused = it.isFocused }
             .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown) {
-                    val move = when (event.key) {
-                        Key.DirectionLeft, Key.A -> Move.LEFT
-                        Key.DirectionRight, Key.D -> Move.RIGHT
-                        Key.DirectionUp, Key.W -> Move.UP
-                        Key.DirectionDown, Key.S -> Move.DOWN
-                        else -> null
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val move = when (event.key) {
+                    Key.DirectionLeft, Key.A -> Move.LEFT
+                    Key.DirectionRight, Key.D -> Move.RIGHT
+                    Key.DirectionUp, Key.W -> Move.UP
+                    Key.DirectionDown, Key.S -> Move.DOWN
+                    else -> null
+                }
+                if (move != null) {
+                    submitMove(move)
+                    true
+                } else {
+                    false
+                }
+            }
+            .pointerInput(Unit) {
+                var total = Offset.Zero
+                detectDragGestures(
+                    onDragStart = { total = Offset.Zero },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        total += dragAmount
+                    },
+                    onDragEnd = {
+                        val move = when {
+                            abs(total.x) < swipeThresholdPx && abs(total.y) < swipeThresholdPx -> null
+                            abs(total.x) > abs(total.y) -> if (total.x > 0) Move.RIGHT else Move.LEFT
+                            else -> if (total.y > 0) Move.DOWN else Move.UP
+                        }
+                        if (move != null) {
+                            submitMove(move)
+                        }
                     }
-
-                    if (move != null) {
-                        lastMove = move
-                        showArrow = true
-                        // Update last pressed key
-                        lastKeyPressed = when (event.key) {
-                            Key.DirectionLeft, Key.A -> "←"
-                            Key.DirectionRight, Key.D -> "→"
-                            Key.DirectionUp, Key.W -> "↑"
-                            Key.DirectionDown, Key.S -> "↓"
-                            else -> null
-                        }
-                        showKeyOverlay = true
-                        scope.launch {
-                            onMove(move)
-                            kotlinx.coroutines.delay(200)
-                            showArrow = false
-                            showKeyOverlay = false
-                        }
-                        true
-                    } else false
-                } else false
+                )
             },
         contentAlignment = Alignment.Center
     ) {
@@ -291,7 +291,6 @@ fun GameBoard(
                 }
             }
 
-            // Key overlay
             if (lastKeyPressed != null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -301,10 +300,10 @@ fun GameBoard(
                         modifier = Modifier
                             .size(80.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF776E65).copy(alpha = keyOverlayAlpha * 0.3f))
+                            .background(TextBrown.copy(alpha = keyOverlayAlpha * 0.3f))
                             .border(
                                 width = 2.dp,
-                                color = Color(0xFF776E65).copy(alpha = keyOverlayAlpha * 0.5f),
+                                color = TextBrown.copy(alpha = keyOverlayAlpha * 0.5f),
                                 shape = RoundedCornerShape(12.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -319,7 +318,6 @@ fun GameBoard(
                 }
             }
 
-            // Game Over overlay
             if (showGameOver) {
                 Box(
                     modifier = Modifier
@@ -366,11 +364,9 @@ fun GameTile(
     var previousCol by remember(col) { mutableStateOf(col) }
     val scope = rememberCoroutineScope()
 
-    val tileSize = 96.dp // Tile size including padding
-    // Animation configuration
-    val moveAnimDuration = 45 // Base duration for movement animation (super quick)
-    val newTileAnimDuration = 100 // Duration for new tile appearance
-    val mergeAnimDuration = 60 // Duration for merge animation
+    val tileSize = 96.dp
+    val moveAnimDuration = 45
+    val mergeAnimDuration = 60
     val density = LocalDensity.current
     val tileSizePx = with(density) { tileSize.toPx() }
 
@@ -379,31 +375,21 @@ fun GameTile(
 
     val offsetX by animateFloatAsState(
         targetValue = targetOffsetX,
-        animationSpec = tween(
-            durationMillis = moveAnimDuration,
-            easing = LinearEasing // Pure linear for super quick movement
-        )
+        animationSpec = tween(durationMillis = moveAnimDuration, easing = LinearEasing)
     )
 
     val offsetY by animateFloatAsState(
         targetValue = targetOffsetY,
-        animationSpec = tween(
-            durationMillis = moveAnimDuration,
-            easing = LinearEasing // Pure linear for super quick movement
-        )
+        animationSpec = tween(durationMillis = moveAnimDuration, easing = LinearEasing)
     )
 
     LaunchedEffect(row, col) {
         if (row != previousRow || col != previousCol) {
-            // Calculate the offset based on position change in pixels
             targetOffsetX = (previousCol - col) * tileSizePx
             targetOffsetY = (previousRow - row) * tileSizePx
-
-            // Trigger animation by resetting the offset
-            kotlinx.coroutines.delay(4) // Minimal delay for smoother transition
+            kotlinx.coroutines.delay(4)
             targetOffsetX = 0f
             targetOffsetY = 0f
-
             previousRow = row
             previousCol = col
         }
@@ -414,9 +400,9 @@ fun GameTile(
             isNew = true
             isMerged = true
             scope.launch {
-                kotlinx.coroutines.delay((moveAnimDuration + 5).toLong()) // Wait for move to complete
+                kotlinx.coroutines.delay((moveAnimDuration + 5).toLong())
                 isNew = false
-                kotlinx.coroutines.delay(10) // Minimal pause before merge animation
+                kotlinx.coroutines.delay(10)
                 isMerged = false
             }
         }
@@ -424,19 +410,19 @@ fun GameTile(
 
     val scale by animateFloatAsState(
         targetValue = when {
-            isMerged -> 1.08f // Very subtle merge animation
-            isNew && value > 0 -> 0.5f // Less dramatic appearance
+            isMerged -> 1.08f
+            isNew && value > 0 -> 0.5f
             else -> 1f
         },
         animationSpec = tween(
             durationMillis = when {
-                isNew -> moveAnimDuration + 20 // Slightly longer than move
+                isNew -> moveAnimDuration + 20
                 isMerged -> mergeAnimDuration
                 else -> moveAnimDuration
             },
             easing = when {
-                isNew -> FastOutSlowInEasing // Smoother appearance
-                isMerged -> FastOutLinearInEasing // Quick merge
+                isNew -> FastOutSlowInEasing
+                isMerged -> FastOutLinearInEasing
                 else -> LinearEasing
             }
         )
@@ -476,7 +462,7 @@ fun GameTile(
                     text = value.toString(),
                     fontSize = fontSize,
                     fontWeight = FontWeight.Bold,
-                    color = if (value > 4) Color.White else Color(0xFF776E65)
+                    color = if (value > 4) Color.White else TextBrown
                 )
             }
         }
@@ -507,99 +493,36 @@ fun GameControls(
     gameState: GameState,
     canUndo: Boolean
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
             onClick = onNewGame,
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8F7A66),
+                containerColor = AccentBrown,
                 contentColor = Color.White
             )
         ) {
-            Text(
-                text = "New Game",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "New Game", fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         if (gameState is GameState.Won && !gameState.continueGame) {
             Button(
                 onClick = onContinue,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF9BE02),
+                    containerColor = WinGold,
                     contentColor = Color.White
                 )
             ) {
-                Text(
-                    text = "Continue",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "Continue", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
         Button(
             onClick = onUndo,
             enabled = canUndo,
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8F7A66),
+                containerColor = AccentBrown,
                 contentColor = Color.White
             )
         ) {
-            Text(
-                text = "Undo",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun MoveArrow(move: Move, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val arrowLength = size.minDimension * 0.4f
-        val headLength = arrowLength * 0.3f
-        val headAngle = 35f
-        val strokeWidth = size.minDimension * 0.05f
-
-        rotate(when(move) {
-            Move.UP -> 270f
-            Move.DOWN -> 90f
-            Move.LEFT -> 180f
-            Move.RIGHT -> 0f
-        }) {
-            // Arrow shaft
-            drawLine(
-                color = Color.White.copy(alpha = 0.6f),
-                start = Offset(size.width * 0.3f, size.height * 0.5f),
-                end = Offset(size.width * 0.7f, size.height * 0.5f),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
-            )
-
-            // Arrow head
-            drawLine(
-                color = Color.White.copy(alpha = 0.6f),
-                start = Offset(size.width * 0.7f, size.height * 0.5f),
-                end = Offset(
-                    size.width * 0.7f - headLength * kotlin.math.cos((180 - headAngle) * Math.PI / 180f).toFloat(),
-                    size.height * 0.5f - headLength * kotlin.math.sin((180 - headAngle) * Math.PI / 180f).toFloat()
-                ),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
-            )
-
-            drawLine(
-                color = Color.White.copy(alpha = 0.6f),
-                start = Offset(size.width * 0.7f, size.height * 0.5f),
-                end = Offset(
-                    size.width * 0.7f - headLength * kotlin.math.cos((180 + headAngle) * Math.PI / 180f).toFloat(),
-                    size.height * 0.5f - headLength * kotlin.math.sin((180 + headAngle) * Math.PI / 180f).toFloat()
-                ),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
-            )
+            Text(text = "Undo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

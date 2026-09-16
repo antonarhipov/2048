@@ -41,6 +41,6 @@ enum class Move {
         /**
          * Returns all possible move directions.
          */
-        fun allMoves(): List<Move> = values().toList()
+            fun allMoves(): List<Move> = entries.toList()
     }
 }
