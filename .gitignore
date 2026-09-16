@@ -1,5 +1,9 @@
 .gradle
 build/
+local.properties
+*.apk
+*.aab
+.cxx/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

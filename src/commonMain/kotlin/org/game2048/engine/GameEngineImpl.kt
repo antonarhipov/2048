@@ -23,7 +23,7 @@ class GameEngineImpl : GameEngine {
         }
 
         // Check if any moves are possible
-        if (!Move.values().any { canMoveInDirection(currentState.board, it) }) {
+        if (!Move.entries.any { canMoveInDirection(currentState.board, it) }) {
             _currentState = GameState.Lost(currentState.board)
             return currentState
         }
@@ -80,13 +80,13 @@ class GameEngineImpl : GameEngine {
     }
 
     private fun hasAnyValidMoves(board: Board): Boolean {
-        return Move.values().any { move -> canMoveInDirection(board, move) }
+        return Move.entries.any { move -> canMoveInDirection(board, move) }
     }
 
     private fun createNewState(board: Board, scoreIncrease: Int): GameState {
         // If the board hasn't changed, check if we're in a game over state
         if (board == currentState.board) {
-            if (!Move.values().any { canMoveInDirection(board, it) }) {
+            if (!Move.entries.any { canMoveInDirection(board, it) }) {
                 return GameState.Lost(board)
             }
             return currentState
@@ -105,7 +105,7 @@ class GameEngineImpl : GameEngine {
                 GameState.Won(newBoard, (currentState as GameState.Won).continueGame)
 
             // Check for game over condition
-            !Move.values().any { canMoveInDirection(newBoard, it) } -> 
+            !Move.entries.any { canMoveInDirection(newBoard, it) } -> 
                 GameState.Lost(newBoard)
 
             // Game continues
@@ -300,6 +300,6 @@ class GameEngineImpl : GameEngine {
     }
 
     private fun hasValidMoves(board: Board): Boolean {
-        return Move.values().any { canMoveInDirection(board, it) }
+        return Move.entries.any { canMoveInDirection(board, it) }
     }
 }
